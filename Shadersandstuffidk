@@ -1,0 +1,176 @@
+--// Shader + Time of Day GUI Script with Minimize + Draggable + Reset + Blood Moon + Void Night //--
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+-- === Effects ===
+local blur = Instance.new("BlurEffect", Lighting)
+blur.Size = 0
+
+local bloom = Instance.new("BloomEffect", Lighting)
+bloom.Intensity = 0.4
+bloom.Threshold = 0.8
+bloom.Size = 56
+
+local sunRays = Instance.new("SunRaysEffect", Lighting)
+sunRays.Intensity = 0.25
+sunRays.Spread = 1
+
+local colorCorrection = Instance.new("ColorCorrectionEffect", Lighting)
+colorCorrection.Brightness = 0
+colorCorrection.Contrast = 0.1
+colorCorrection.Saturation = 0.1
+colorCorrection.TintColor = Color3.fromRGB(255, 255, 255)
+
+-- === Functions ===
+local function setTime(option)
+	if option == "Day" then
+		Lighting.TimeOfDay = "14:00:00"
+		colorCorrection.Brightness = 0.05
+		colorCorrection.Saturation = 0.15
+		colorCorrection.TintColor = Color3.fromRGB(255,255,255)
+
+	elseif option == "Night" then
+		Lighting.TimeOfDay = "00:00:00"
+		colorCorrection.Brightness = -0.2
+		colorCorrection.Saturation = -0.1
+		colorCorrection.TintColor = Color3.fromRGB(200,200,255)
+
+	elseif option == "BloodMoon" then
+		Lighting.TimeOfDay = "00:00:00"
+		colorCorrection.Brightness = -0.3
+		colorCorrection.Saturation = 0.2
+		colorCorrection.TintColor = Color3.fromRGB(255,50,50)
+
+	elseif option == "VoidNight" then
+		Lighting.TimeOfDay = "00:00:00"
+		colorCorrection.Brightness = -0.1
+		colorCorrection.Saturation = 0.3
+		colorCorrection.TintColor = Color3.fromRGB(150,0,255)
+	end
+end
+
+local motionBlurEnabled = false
+local function toggleMotionBlur()
+	motionBlurEnabled = not motionBlurEnabled
+	if motionBlurEnabled then
+		blur.Size = 8
+	else
+		blur.Size = 0
+	end
+end
+
+local function resetLighting()
+	-- Reset time and effects back to Roblox defaults
+	Lighting.TimeOfDay = "14:00:00"
+	blur.Size = 0
+	bloom.Intensity = 1
+	bloom.Threshold = 0.8
+	bloom.Size = 24
+	sunRays.Intensity = 0
+	colorCorrection.Brightness = 0
+	colorCorrection.Contrast = 0
+	colorCorrection.Saturation = 0
+	colorCorrection.TintColor = Color3.fromRGB(255,255,255)
+	motionBlurEnabled = false
+	print("Lighting reset to default.")
+end
+
+-- === GUI Setup ===
+local player = game.Players.LocalPlayer
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ShaderMenu"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Main frame
+local frame = Instance.new("Frame", screenGui)
+frame.Size = UDim2.new(0, 200, 0, 280)
+frame.Position = UDim2.new(0, 20, 0.5, -140)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BorderSizePixel = 2
+frame.Visible = true
+
+-- Minimize/Toggle button (top-left corner of screen)
+local toggleButton = Instance.new("TextButton", screenGui)
+toggleButton.Size = UDim2.new(0, 50, 0, 30)
+toggleButton.Position = UDim2.new(0, 10, 0, 10)
+toggleButton.Text = "≡"
+toggleButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+toggleButton.TextColor3 = Color3.fromRGB(255,255,255)
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 20
+
+toggleButton.MouseButton1Click:Connect(function()
+	frame.Visible = not frame.Visible
+end)
+
+-- UIListLayout for buttons
+local listLayout = Instance.new("UIListLayout", frame)
+listLayout.Padding = UDim.new(0,5)
+listLayout.FillDirection = Enum.FillDirection.Vertical
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+
+-- Helper function to create buttons
+local function makeButton(text, callback)
+	local button = Instance.new("TextButton", frame)
+	button.Size = UDim2.new(0,180,0,40)
+	button.Text = text
+	button.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	button.TextColor3 = Color3.fromRGB(255,255,255)
+	button.Font = Enum.Font.SourceSansBold
+	button.TextSize = 20
+	button.MouseButton1Click:Connect(callback)
+	return button
+end
+
+-- Create buttons
+makeButton("☀️ Day", function() setTime("Day") end)
+makeButton("🌙 Night", function() setTime("Night") end)
+makeButton("🌑 Blood Moon", function() setTime("BloodMoon") end)
+makeButton("💜 Void Night", function() setTime("VoidNight") end)
+makeButton("🎥 Toggle Motion Blur", toggleMotionBlur)
+makeButton("🔄 Reset Lighting", resetLighting)
+
+-- === Dragging Support ===
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+	local newPos = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+	TweenService:Create(frame, TweenInfo.new(0.15), {Position = newPos}):Play()
+end
+
+frame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+frame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
+
+print("Shader + Time of Day GUI loaded. Use the ≡ button to open/close menu. Frame is draggable. Includes Blood Moon + Void Night.")
