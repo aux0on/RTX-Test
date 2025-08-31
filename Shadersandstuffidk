@@ -1,4 +1,4 @@
---// Shader + Time of Day GUI Script with Minimize + Draggable + Reset + Blood Moon + Void Night //--
+--// Shader + Time of Day GUI Script with Blur Slider (PC + Mobile draggable) //--
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -22,57 +22,44 @@ colorCorrection.Contrast = 0.1
 colorCorrection.Saturation = 0.1
 colorCorrection.TintColor = Color3.fromRGB(255, 255, 255)
 
--- === Functions ===
+-- === Helper Tween Functions ===
+local function tweenCorrection(props, time)
+	TweenService:Create(colorCorrection, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+end
+
+local function tweenBlur(size, time)
+	TweenService:Create(blur, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = size}):Play()
+end
+
+-- === Time Presets ===
 local function setTime(option)
 	if option == "Day" then
 		Lighting.TimeOfDay = "14:00:00"
-		colorCorrection.Brightness = 0.05
-		colorCorrection.Saturation = 0.15
-		colorCorrection.TintColor = Color3.fromRGB(255,255,255)
+		tweenCorrection({Brightness = 0.05, Saturation = 0.15, TintColor = Color3.fromRGB(255,255,255)}, 1)
 
 	elseif option == "Night" then
 		Lighting.TimeOfDay = "00:00:00"
-		colorCorrection.Brightness = -0.2
-		colorCorrection.Saturation = -0.1
-		colorCorrection.TintColor = Color3.fromRGB(200,200,255)
+		tweenCorrection({Brightness = -0.2, Saturation = -0.1, TintColor = Color3.fromRGB(200,200,255)}, 1)
 
 	elseif option == "BloodMoon" then
 		Lighting.TimeOfDay = "00:00:00"
-		colorCorrection.Brightness = -0.3
-		colorCorrection.Saturation = 0.2
-		colorCorrection.TintColor = Color3.fromRGB(255,50,50)
+		tweenCorrection({Brightness = -0.3, Saturation = 0.2, TintColor = Color3.fromRGB(255,50,50)}, 2)
 
 	elseif option == "VoidNight" then
 		Lighting.TimeOfDay = "00:00:00"
-		colorCorrection.Brightness = -0.1
-		colorCorrection.Saturation = 0.3
-		colorCorrection.TintColor = Color3.fromRGB(150,0,255)
+		tweenCorrection({Brightness = -0.1, Saturation = 0.3, TintColor = Color3.fromRGB(150,0,255)}, 2)
 	end
 end
 
-local motionBlurEnabled = false
-local function toggleMotionBlur()
-	motionBlurEnabled = not motionBlurEnabled
-	if motionBlurEnabled then
-		blur.Size = 8
-	else
-		blur.Size = 0
-	end
-end
-
+-- === Reset ===
 local function resetLighting()
-	-- Reset time and effects back to Roblox defaults
 	Lighting.TimeOfDay = "14:00:00"
-	blur.Size = 0
 	bloom.Intensity = 1
 	bloom.Threshold = 0.8
 	bloom.Size = 24
 	sunRays.Intensity = 0
-	colorCorrection.Brightness = 0
-	colorCorrection.Contrast = 0
-	colorCorrection.Saturation = 0
-	colorCorrection.TintColor = Color3.fromRGB(255,255,255)
-	motionBlurEnabled = false
+	tweenCorrection({Brightness = 0, Contrast = 0, Saturation = 0, TintColor = Color3.fromRGB(255,255,255)}, 1)
+	tweenBlur(0, 0.8)
 	print("Lighting reset to default.")
 end
 
@@ -85,13 +72,13 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- Main frame
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 200, 0, 280)
-frame.Position = UDim2.new(0, 20, 0.5, -140)
+frame.Size = UDim2.new(0, 220, 0, 320)
+frame.Position = UDim2.new(0, 20, 0.5, -160)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.BorderSizePixel = 2
 frame.Visible = true
 
--- Minimize/Toggle button (top-left corner of screen)
+-- Minimize button
 local toggleButton = Instance.new("TextButton", screenGui)
 toggleButton.Size = UDim2.new(0, 50, 0, 30)
 toggleButton.Position = UDim2.new(0, 10, 0, 10)
@@ -105,17 +92,17 @@ toggleButton.MouseButton1Click:Connect(function()
 	frame.Visible = not frame.Visible
 end)
 
--- UIListLayout for buttons
+-- Layout
 local listLayout = Instance.new("UIListLayout", frame)
 listLayout.Padding = UDim.new(0,5)
 listLayout.FillDirection = Enum.FillDirection.Vertical
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 
--- Helper function to create buttons
+-- Helper function to make buttons
 local function makeButton(text, callback)
 	local button = Instance.new("TextButton", frame)
-	button.Size = UDim2.new(0,180,0,40)
+	button.Size = UDim2.new(0,200,0,40)
 	button.Text = text
 	button.BackgroundColor3 = Color3.fromRGB(60,60,60)
 	button.TextColor3 = Color3.fromRGB(255,255,255)
@@ -125,18 +112,67 @@ local function makeButton(text, callback)
 	return button
 end
 
--- Create buttons
+-- Buttons
 makeButton("☀️ Day", function() setTime("Day") end)
 makeButton("🌙 Night", function() setTime("Night") end)
 makeButton("🌑 Blood Moon", function() setTime("BloodMoon") end)
 makeButton("💜 Void Night", function() setTime("VoidNight") end)
-makeButton("🎥 Toggle Motion Blur", toggleMotionBlur)
 makeButton("🔄 Reset Lighting", resetLighting)
 
--- === Dragging Support ===
+-- === Blur Strength Slider ===
+local sliderFrame = Instance.new("Frame", frame)
+sliderFrame.Size = UDim2.new(0,200,0,50)
+sliderFrame.BackgroundTransparency = 1
+
+local sliderLabel = Instance.new("TextLabel", sliderFrame)
+sliderLabel.Size = UDim2.new(1,0,0,20)
+sliderLabel.Text = "🎥 Motion Blur Strength"
+sliderLabel.TextColor3 = Color3.fromRGB(255,255,255)
+sliderLabel.BackgroundTransparency = 1
+sliderLabel.Font = Enum.Font.SourceSansBold
+sliderLabel.TextSize = 18
+
+local sliderBar = Instance.new("Frame", sliderFrame)
+sliderBar.Size = UDim2.new(1,0,0,10)
+sliderBar.Position = UDim2.new(0,0,0,30)
+sliderBar.BackgroundColor3 = Color3.fromRGB(80,80,80)
+
+local sliderKnob = Instance.new("Frame", sliderBar)
+sliderKnob.Size = UDim2.new(0,10,1,0)
+sliderKnob.BackgroundColor3 = Color3.fromRGB(200,200,200)
+
+-- Slider Dragging
+local draggingSlider = false
+local function updateSlider(inputX)
+	local relativeX = math.clamp((inputX - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
+	local blurStrength = math.floor(relativeX * 20) -- 0 to 20 strength
+	sliderKnob.Position = UDim2.new(relativeX, -5, 0, 0)
+	tweenBlur(blurStrength, 0.2)
+end
+
+sliderBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingSlider = true
+		updateSlider(input.Position.X)
+	end
+end)
+
+sliderBar.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingSlider = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		updateSlider(input.Position.X)
+	end
+end)
+
+-- === Dragging Support (PC + Mobile) ===
 local dragging, dragInput, dragStart, startPos
 
-local function update(input)
+local function updateFrame(input)
 	local delta = input.Position - dragStart
 	local newPos = UDim2.new(
 		startPos.X.Scale,
@@ -144,7 +180,7 @@ local function update(input)
 		startPos.Y.Scale,
 		startPos.Y.Offset + delta.Y
 	)
-	TweenService:Create(frame, TweenInfo.new(0.15), {Position = newPos}):Play()
+	frame.Position = newPos
 end
 
 frame.InputBegan:Connect(function(input)
@@ -169,8 +205,8 @@ end)
 
 UserInputService.InputChanged:Connect(function(input)
 	if input == dragInput and dragging then
-		update(input)
+		updateFrame(input)
 	end
 end)
 
-print("Shader + Time of Day GUI loaded. Use the ≡ button to open/close menu. Frame is draggable. Includes Blood Moon + Void Night.")
+print("Shader GUI loaded with blur slider + mobile dragging.")
